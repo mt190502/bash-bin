@@ -1,0 +1,117 @@
+#!/bin/bash
+
+##############################
+#
+## Config
+#
+##############################
+INSTALL_PREFIX="$HOME/.local/share"
+
+
+
+##############################
+#
+## MAIN PROCESS
+## DO NOT EDIT
+#
+##############################
+VENTOY_URL="https://api.github.com/repos/ventoy/Ventoy/releases"
+VENTOY_LATEST_PKG="$VENTOY_URL/latest"
+VENTOY_LATEST_PKG_URL="$(curl -fsSL $VENTOY_LATEST_PKG | jq -r .assets[].browser_download_url | grep linux)"
+VENTOY_VERSION="$(echo $VENTOY_LATEST_PKG_URL | awk -F '/' '{print $NF}')"
+
+[[ ! -n $INSTALL_PREFIX ]] && INSTALL_PREFIX="$HOME/.local/share" 
+
+[[ -e "$HOME/.local/.ventoy_prefix" ]] && VENTOY_DIR="$(cat $HOME/.local/.ventoy_prefix)"
+
+install_ventoy(){
+	[[ -n "$(command -v ventoy)" ]] && [[ -e "$VENTOY_DIR/ventoy-version" ]] && echo "Ventoy is already installed in $INSTALL_PREFIX" && exit 0
+
+	pushd $(mktemp -d)
+	wget "$VENTOY_LATEST_PKG_URL"
+	tar xf $VENTOY_VERSION
+	
+	[[ ! -d "$INSTALL_PREFIX/ventoy" ]] && mkdir -p $INSTALL_PREFIX/ventoy
+	mkdir -p $HOME/.local/share/applications $HOME/.local/bin $HOME/.local/share/icons
+	cp -dpr ventoy*/* $INSTALL_PREFIX/ventoy
+	echo $VENTOY_VERSION | tee $INSTALL_PREFIX/ventoy/ventoy-version
+	echo $INSTALL_PREFIX/ventoy | tee ~/.local/.ventoy_prefix
+	STARTERFILE='#!/bin/bash\n'
+	STARTERFILE+="$INSTALL_PREFIX/ventoy/VentoyGUI.\$(arch)"
+	echo -e "$STARTERFILE" | tee $HOME/.local/bin/ventoy
+	chmod +x $HOME/.local/bin/ventoy
+	cp $INSTALL_PREFIX/ventoy/WebUI/static/img/VentoyLogo.png $HOME/.local/share/icons/ventoy.png
+	
+	DESKFILE='[Desktop Entry]\n'
+	DESKFILE+='Type=Application\n'
+	DESKFILE+='Name=Ventoy GUI\n'
+	DESKFILE+='GenericName=Ventoy USB Tool\n'
+	DESKFILE+='Icon=ventoy\n'
+	DESKFILE+='TryExec=ventoy\n'
+	DESKFILE+='Exec=ventoy %U\n'
+	DESKFILE+='Terminal=false\n'
+	DESKFILE+='Categories=Usb;Tools;Boot;\n'
+	DESKFILE+='StartupWMClass=ventoy'
+
+	echo -e $DESKFILE | tee $HOME/.local/share/applications/ventoy.desktop
+
+}
+
+update_ventoy(){
+	[[ ! -e "$HOME/.local/.ventoy_prefix" ]] && echo "Ventoy is not installed, aborting!!!" && exit 1
+
+	if [[ -e "$VENTOY_DIR/ventoy-version" ]]; then
+		[[ "$(cat $VENTOY_DIR/ventoy-version)" == "$VENTOY_VERSION" ]] && echo -e "Ventoy is up-to-date\nNothing to do!" && exit 0
+	fi
+
+	remove_ventoy
+	install_ventoy
+}
+
+remove_ventoy(){
+	[[ ! -e "$HOME/.local/.ventoy_prefix" ]] && echo "Ventoy is not installed, aborting!!!" && exit 1
+
+	rm -rf $VENTOY_DIR $HOME/.local/share/applications/ventoy.desktop $HOME/.local/bin/ventoy $HOME/.local/.ventoy_prefix
+
+}
+
+
+checkpackages(){
+	OLDIFS=$IFS
+	IFS=","
+
+	APPS="wget,tar,curl,git"
+
+	missingpacks=0
+	for a in $APPS; do
+		command -v $a >/dev/null 2>&1;
+		if [[ $? -eq 1 ]]; then
+				echo -e "Please install $1 before proceeding."
+				missingpacks=$(( $missingpacks + 1 ))
+		fi
+	done
+
+	[[ $missingpacks -ge "1" ]] && exit
+}
+
+
+getargs(){
+	case $@ in
+		i) _install=true;;
+		r) _remove=true ;;
+		u) _update=true ;;
+		*) echo "Unknown Command!!!" && exit 1;;
+	esac
+}
+
+
+main(){
+	getargs "$@"
+	checkpackages
+	[[ "${_install}" == "true" ]] && install_ventoy
+	[[ "${_remove}"  == "true" ]] && remove_ventoy
+	[[ "${_update}"  == "true" ]] && update_ventoy
+	exit 0
+}
+
+main "$@"
