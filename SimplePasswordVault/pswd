@@ -1,0 +1,88 @@
+#!/bin/bash
+#####################################################
+##### Basit şifre saklayıcı                     #####
+##### Scripti hazırlayan : UsmanAga             #####
+##### Telegram : https://t.me/UsmanAga          #####
+#####################################################
+
+#####################################################
+## Şifrelerinizi saklayacağınız klasörü seçin.      #
+## Öntanımlı olarak : $(xdg-user-dir DOCUMENTS)     #
+## Yani => /home/kullanıcı/Documents                #
+YOL="$(xdg-user-dir DOCUMENTS)"
+#####################################################
+
+#####################################################
+## Eski şifre dosyalarının yedekleneceği klasörü    #
+## seçiniz                                          #
+## Öntanımlı : $YOL/.backup                         #
+## Yani => /home/kullanıcı/Documents/.backup        #
+ESKI="$YOL/.backup/"
+#####################################################
+
+#####################################################
+## Dosyalarınızı kaydetmek istediğiniz ismi seçin   #
+## Öntanımlı : $YOL/protectedpswd                   #
+## Yani => /home/kullanıcı/Documents/protectedpswd  #
+SIFREDOSYASI="$YOL/protectedpswd"
+#####################################################
+
+#####################################################
+## Scriptin ana kısmı (Burayı mümkün olduğunca      #
+## ellememeye/değiştirmemeye özen gösterin)         #
+#####################################################
+_date="$(date +%d_%m_%Y-%H_%M_%S)"
+_tmp="$YOL/.tmp_$_date"
+_altmp=".tmp_$_date"
+
+[[ -d "$YOL/.backup" ]] || mkdir "$YOL/.backup"
+
+check vim
+check xdg-user-dir
+check base64
+
+check(){
+command -v $1 || echo "$1 programı bulunamadı. Programdan çıkılıyor"; exit 
+}
+
+clear
+case $1 in 
+	--new|-n|--yeni|-y)
+		[[ -e "$SIFREDOSYASI" ]] && echo -e "Zaten önceden ayarlanmış bir dosyanız var.\nScripti (--open , -o , --ac , -a) parametrelerinden birisi ile çalıştırın.\nProgramdan çıkılıyor." && exit || touch "$_tmp"
+		echo -e "Şifre dosyanıza şifrelerinizi yazdıktan sonra ek güvenlik isterseniz;\nVim'e şifrelerinizi kaydettikten sonra :X yazıp dosyanıza bir şifre belirleyiniz.\nEk şifrenizi belirledikten sonra :wq yazarak dosyanızı kaydedebilirsiniz.\nDevam etmek için <ENTER> tuşuna basınız."
+		read
+		vim "$_tmp"
+		base64 "$_tmp" > "$SIFREDOSYASI"
+	;;
+	--open|-o|--ac|-a)
+		base64 -d "$SIFREDOSYASI" > "$_tmp"
+		vim "$_tmp"
+		mv "$SIFREDOSYASI" "$ESKI/sifreler_$_date"
+		base64 "$_tmp" > "$SIFREDOSYASI"
+		clear
+		echo -e "Şifre dosyanızın yedeğini ${ESKI}sifreler_$_date yoluna kaydettim :)"
+		rm $_tmp
+	;;
+	--backup|-b|--yedek)
+		COUNT=1
+		[[ "$(ls $ESKI)" == "" ]] && echo "Herhangi bir yedek dosyası bulunamadı. Programdan çıkılıyor." && exit 1
+		for i in $(ls $ESKI); do
+			echo "$COUNT : $i"
+			COUNT=$(($COUNT+1))
+		done
+		read -p "Listeden istediğiniz yedeğin numarasını giriniz : " selected
+		SECILEN=$(ls $ESKI | head -n $selected | tail -n 1)
+		base64 -d "$ESKI$SECILEN" > "$ESKI$_altmp"
+                vim "$ESKI$_altmp"
+                mv "$ESKI$SECILEN" "${ESKI}${SECILEN}_eski"
+		base64 "${ESKI}$_altmp" > "${ESKI}${SECILEN}"
+		rm $_tmp
+	;;
+	--help|-h|--yardim|*)
+		echo -e " Kullanım : $0 [--new , -n , --yeni , -y] [--open , -o , -ac , -a] [--help , -h , --yardim]
+			( --new , -n , --yeni , -y ) : Yeni dosya oluşturur
+			( --open , -o , -ac , -a) : Varolan dosyayı açar.
+			( --help , -y , --yardim) : Bu menüyü görüntüler
+			( --backup , -b , --yedek) : Eski yedekler arasında gezinmeyi sağlar"
+	;;
+esac

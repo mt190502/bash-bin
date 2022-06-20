@@ -1,0 +1,6 @@
+debianefihelper
+---------------
+
+- Run `/usr/sbin/efihelper first` to create the configuration file
+- Edit `/etc/debianefihelper.conf` to check the values
+- Run `/usr/sbin/efihelper install $(uname -r)` to set up for running kernel

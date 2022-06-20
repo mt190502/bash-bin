@@ -1,0 +1,197 @@
+#!/bin/bash
+##############################
+#
+## SET CONFIGFILE
+#
+##############################
+CONFIGFILE="$HOME/.config/autowallpaperchanger.conf"
+
+
+
+##############################
+#
+## CHECK CONFIGFILE
+#
+##############################
+checkconfigfile(){
+	if [[ ! -e $CONFIGFILE ]]; then
+		echo -e "Config File is missing!!\nPlease run this tool with 'firstsetup' parameter.."
+		exit 1
+	else
+		. $CONFIGFILE
+	fi
+}
+
+
+
+
+##############################
+#
+## LET'S GO ;)
+#
+##############################
+autowallpaperchanger(){
+	PREVWALFILE="$WALLPATH/.prevwallpapers"
+	[[ ! -e $PREVWALFILE ]] && echo $(gsettings get org.gnome.desktop.background picture-uri | cut -d "/" -f3- | sed "s/'//g") > $PREVWALFILE
+	
+	E2="$(echo $EXTENSIONS | sed 's_,_\\|_g')"
+	for x in $(find $WALLPATH -iregex ".*\.\($E2\)$"); do
+		[[ ! -f $x ]] && echo -e "Wallpaper not found in \"$WALLPATH\" directory.\nPlease load your wallpapers in \"$WALLPATH\" directory. Aborting..." && exit
+	done
+
+	while true; do
+
+		. $WALLPATH/.pin
+
+		for a in $(find $WALLPATH -iregex ".*\.\($E2\)$" | shuf -n 1); do
+			[[ -e "$WALLPATH/.pin" ]] && [[ "$PINNED" == "1" ]] && notify-send "Pin mode is on" "Type 'autowallpaperchanger unpin' to unpin" && exit
+			if [[ -n $(echo $a | grep -vE `echo $(cat $PREVWALFILE) | sed 's_ _|_g'`) ]]; then
+				gsettings set org.gnome.desktop.background picture-uri "file://$a"
+				echo $a >> $PREVWALFILE
+				[[ "$(ls $WALLPATH | wc -l)" == "$(cat $PREVWALFILE | wc -l)" ]] && rm $PREVWALFILE
+				sleep $DURATION
+			fi
+		done
+	done
+}
+
+
+
+
+firstsetup(){
+        touch $CONFIGFILE
+        echo -e "##############################\n#\n## WALLPAPER DIRECTORY PATH\n#\n##############################\n\
+WALLPATH=\"$(xdg-user-dir PICTURES)\"\n\
+EXTENSIONS=\"jpg,png,jpeg\"\n\n\
+##############################\n#\n## CHANGER DURATION\n#\n##############################\n\
+DURATION=\"1m\"" > $CONFIGFILE
+
+	. $CONFIGFILE
+
+	[[ ! -e $HOME/.config/autostart/autowallpaperchanger.desktop ]] && echo -e "[Desktop Entry]\n\
+Name=AutoWallpaperChanger\n\
+Exec=sh -c \"$HOME/.local/bin/autowallpaperchanger run\"\n\
+Terminal=false\n\
+Type=Application\n\
+StartupNotify=false" > $HOME/.config/autostart/autowallpaperchanger.desktop
+	
+	touch $WALLPATH/.pin
+}
+
+
+
+
+pinwallpaper(){
+	echo "PINNED=1" > $WALLPATH/.pin && echo "Pinned"
+	ps aux | grep -v grep | grep -i autowallpaper | grep run | awk '{print $2}' | xargs kill -9
+}
+
+
+
+
+unpinwallpaper(){
+	echo "PINNED=0" > $WALLPATH/.pin && echo "Unpinned"
+	gio launch $HOME/.config/autostart/autowallpaperchanger.desktop
+}
+
+
+
+
+reloadscript(){
+	if [[ "$PINNED" = "1" ]]; then
+		notify-send "Pin mode is on" "Type 'autowallpaperchanger unpin' to unpin"
+	       	exit
+	else
+	       	ps aux | grep -v grep | grep -i autowallpaper | grep run | awk '{print $2}' | xargs kill -9 && gio launch $HOME/.config/autostart/autowallpaperchanger.desktop && echo 'Reloaded' || echo 'Not running'
+	fi
+}
+
+
+
+
+stopscript(){
+	ps aux | grep -v grep | grep -i autowallpaper | grep run | awk '{print $2}' | xargs kill -9 && echo 'Stopped' || echo "Not running"
+}
+
+
+
+
+showwpname(){
+	gsettings get org.gnome.desktop.background picture-uri | awk -F "/" '{print $NF}' | cut -d \' -f1
+}
+
+
+
+
+removescript(){
+	echo -e "This script file and configuration files will be deleted. Do you want to continue? (Y/N)" 
+	read -p "> " answer
+	case $answer in
+		y|Y|yes|Yes|YES)
+			[[ -e $HOME/.config/autostart/autowallpaperchanger.desktop ]] && rm $HOME/.config/autostart/autowallpaperchanger.desktop
+			[[ -e $WALLPATH/.prevwallpapers ]] && rm $WALLPATH/.prevwallpapers
+			[[ -e $HOME/.local/bin/autowallpaperchanger ]] && rm $HOME/.local/bin/autowallpaperchanger
+		;;
+		n|N|no|No|NO)
+			exit
+		;;
+		*)
+			echo "Wrong Answer, Aborting..."
+		;;
+	esac
+}
+
+
+
+
+main(){
+	case $@ in
+		firstsetup)
+			firstsetup
+		;;
+		pin)
+			checkconfigfile
+			pinwallpaper
+		;;
+		reload)
+			checkconfigfile
+			. $WALLPATH/.pin
+			reloadscript
+		;;
+		remove)
+			checkconfigfile
+                        removescript
+                ;;
+		run)
+			checkconfigfile
+                        autowallpaperchanger
+                ;;
+                show)
+                        showwpname
+                ;;
+		stop)
+                        stopscript
+                ;;
+                unpin)
+			checkconfigfile
+                        unpinwallpaper
+
+		;;
+		*)
+			echo -e "Wrong option!!\nUsage:\n\t\
+firstsetup : First Setup.\n\t\
+pin        : Pin current wallpaper.\n\t\
+reload     : Reload this tool.\n\t\
+remove     : Remove this installation.\n\t\
+run        : Run this tool.\n\t\
+show       : Show wallpaper name.\n\t\
+stop       : Stop this script.\n\t\
+unpin      : Unpin wallpaper."
+		;;
+	esac
+}
+
+
+
+
+main "$@"

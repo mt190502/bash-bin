@@ -1,0 +1,204 @@
+#!/bin/bash
+#GTK Theme blur machine (beta)
+#MuhammedTaha02
+
+blurlevel="20"
+
+wallpaperfile="$(gsettings get org.gnome.desktop.background picture-uri | cut -d\' -f2 | cut -d\/ -f3-)"
+blurdir="$(xdg-user-dir PICTURES)/BlurredWallpapers/"
+blurfile="${blurdir}$(echo ${wallpaperfile##*\/} | sed 's/.png/-blurred.png/g' | sed 's/.jpg/-blurred.jpg/g')"
+theme="$(gsettings get org.gnome.shell.extensions.user-theme name | cut -d\' -f2)"
+[[ "$theme" == "Adwaita-Dark" ]] && theme="Adwaita-dark"
+
+[[ -d "$(xdg-user-dir PICTURES)/BlurredWallpapers" ]] || mkdir "$(xdg-user-dir PICTURES)/BlurredWallpapers"
+
+setadwaita(){
+	if [[ -e "$HOME/.themes/Adwaita-dark/gnome-shell/gnome-shell.css" ]]; then
+		echo 1
+		_file="$HOME/.themes/Adwaita-dark/gnome-shell/gnome-shell.css"
+	elif [[ -e "$HOME/.local/share/themes/Adwaita-dark/gnome-shell/gnome-shell.css" ]]; then
+		echo 2
+		_file="$HOME/.local/share/themes/Adwaita-dark/gnome-shell/gnome-shell.css"
+	elif [[ -e "/usr/local/share/themes/Adwaita-dark/gnome-shell/gnome-shell.css" ]]; then
+		echo 3
+		_file="/usr/local/share/themes/Adwaita-dark/gnome-shell/gnome-shell.css"
+		_rootperm=1
+	elif [[ -e "/usr/share/themes/Adwaita-dark/gnome-shell/gnome-shell.css" ]]; then
+		echo 4
+		_file="/usr/share/themes/Adwaita-dark/gnome-shell/gnome-shell.css"
+		_rootperm=1
+	fi
+}
+
+if [[ -e "$HOME/.themes/$theme/gnome-shell/gnome-shell.css" ]]; then
+	_file="$HOME/.themes/$theme/gnome-shell/gnome-shell.css"
+	oldvar="$(cat ${_file} | grep -A3 overviewGroup | grep url | cut -d\" -f2)"
+elif [[ -e "$HOME/.local/share/themes/$theme/gnome-shell/gnome-shell.css" ]]; then
+	_file="$HOME/.local/share/themes/$theme/gnome-shell/gnome-shell.css"
+	oldvar="$(cat ${_file} | grep -A3 overviewGroup | grep url | cut -d\" -f2)"
+elif [[ -e "/usr/local/share/themes/$theme/gnome-shell/gnome-shell.css" ]]; then
+	_file="/usr/local/share/themes/$theme/gnome-shell/gnome-shell.css"
+	_rootperm=1
+	oldvar="$(cat ${_file} | grep -A3 overviewGroup | grep url | cut -d\" -f2)"
+elif [[ -e "/usr/share/themes/$theme/gnome-shell/gnome-shell.css" ]]; then
+	_file="/usr/share/themes/$theme/gnome-shell/gnome-shell.css"
+	_rootperm=1
+	oldvar="$(cat ${_file} | grep -A3 overviewGroup | grep url | cut -d\" -f2)"
+elif [[ "$theme" == "Adwaita-dark" ]]; then
+	#setadwaita
+	_file="/usr/share/themes/Adwaita-dark/gnome-shell/gnome-shell.css"
+	_rootperm=1
+	_adwaita=1
+	oldvar="$(cat ${_file} | grep -A3 overviewGroup | grep url | cut -d\" -f2)"
+fi
+
+
+_test(){
+	echo "Wallpaper File           : $wallpaperfile"
+	echo "Shell Theme              : $theme"
+	echo "Blur Wallpaper Directory : $blurdir"
+	echo "Blur Wallpaper File      : $blurfile"
+	echo "Theme CSS File           : ${_file}"
+	echo "Old settings             : $oldvar"
+
+	[[ -e ${wallpaperfile} ]] && echo 1 || echo 0
+	[[ -e ${_file} ]] && echo 1 || echo 0
+
+	exit
+}
+
+
+_convert(){
+	_head="$(cat ${_file} | grep -A6 -ne overviewGroup | grep "#overview" | cut -d":" -f1)"
+	
+	if [[ "$(cat ${_file} | grep -A2 overviewGroup | grep -o '}')" == "}" ]]; then
+		_tail="$(cat ${_file} | grep -A2 -ne overviewGroup | grep '}' | cut -d "-" -f1)"
+	elif [[ "$(cat ${_file} | grep -A3 overviewGroup | grep -o '}')" == "}" ]]; then
+		_tail="$(cat ${_file} | grep -A3 -ne overviewGroup | grep '}' | cut -d "-" -f1)"
+	elif [[ "$(cat ${_file} | grep -A4 overviewGroup | grep -o '}')" == "}" ]]; then
+		_tail="$(cat ${_file} | grep -A4 -ne overviewGroup | grep '}' | cut -d "-" -f1)"
+	elif [[ "$(cat ${_file} | grep -A5 overviewGroup | grep -o '}')" == "}" ]]; then
+		_tail="$(cat ${_file} | grep -A5 -ne overviewGroup | grep '}' | cut -d "-" -f1)"
+	elif [[ "$(cat ${_file} | grep -A6 overviewGroup | grep -o '}')" == "}" ]]; then
+		_tail="$(cat ${_file} | grep -A6 -ne overviewGroup | grep '}' | cut -d "-" -f1)"
+	fi
+
+	_cnt="$((${_tail} - ${_head}))"
+	_count="$((${_cnt}+1))"
+	
+	for i in $(printf "%.s${_head} " $(seq ${_count})); do
+		cat ${_file} | sed "${i}d" >> /tmp/tmpfile && sudo mv /tmp/tmpfile ${_file}
+	done
+
+	_newvar="#overviewGroup {\n"
+	_newvar+="background-image: url(\"${blurfile}\");\n"
+	_newvar+="background-size: cover\;\n\}"
+	_newvar+=" "
+	
+	if [[ "${_rootperm}" == "1" ]]; then
+		cat ${_file} | sed "${_head}a\
+		${_newvar}" >> /tmp/tmpfile && sudo mv /tmp/tmpfile ${_file}
+	else
+		cat ${_file} | sed "${_head}a\
+		${_newvar}" >> tmpfile && mv ./tmpfile ${_file}
+	fi
+}
+
+
+adwaitaconvert(){
+	sudo mkdir -p /usr/share/themes/Adwaita-dark/gnome-shell/
+	gresource extract /usr/share/gnome-shell/gnome-shell-theme.gresource /org/gnome/shell/theme/gnome-shell.css > /tmp/gnome-shell.css
+	sudo mv /tmp/gnome-shell.css /usr/share/themes/Adwaita-dark/gnome-shell/
+	firstcreate
+	_convert
+	reset
+}
+
+
+blur(){
+	convert ${wallpaperfile} -blur 0x$blurlevel ${blurfile}
+}
+
+
+setblur(){	
+	if [[ "${_rootperm}" == "1" ]]; then
+		cat ${_file} | sed "s_${oldvar}_${blurfile}_g" >> /tmp/tmpfile && sudo mv /tmp/tmpfile ${_file}
+	else
+		cat ${_file} | sed "s_${oldvar}_${blurfile}_g" >> ./tmpfile && mv ./tmpfile ${_file}
+	fi
+}
+
+
+reset(){
+	gsettings set org.gnome.shell.extensions.user-theme name ""
+	gsettings set org.gnome.shell.extensions.user-theme name "$theme"
+}
+
+
+firstcreate(){
+	[[ "${_rootperm}" == "1" ]] && sudo cp ${_file} ${_file}.orig || cp ${_file} ${_file}.orig
+}
+
+
+restore(){
+	[[ "${_adwaita}" == "1" ]] && rm -rf /usr/share/themes/Adwaita-dark/gnome-shell
+	if [[ "${_rootperm}" == "1" ]]; then
+		sudo mv ${_file}.orig ${_file}
+	else
+		mv ${_file}.orig ${_file}
+	fi
+	exit
+}
+
+
+while getopts "rt" opt; do
+	case $opt in
+		r)
+			restore
+		;;
+		t)
+			_test
+		;;
+	esac
+done
+
+
+if [[ "${_rootperm}" == "1" ]]; then
+	if [ $(id -u) -ne 0 ]; then
+		echo "Theme files are located under /usr. But I'll need root privileges to access there"
+		echo "Press <Enter> to continue or press <Ctrl+C> to cancel operation"
+		read
+	fi
+fi
+
+if [[ "${_adwaita}" == "1" ]]; then
+	echo 5
+	adwaitaconvert
+fi
+
+
+if [[ "$(cat ${_file} | grep -A3 overviewGroup | grep -o background-color)" == "background-color" ]]; then
+	if [[ -e ${blurfile} ]]; then
+		echo 1
+		firstcreate
+		_convert
+		reset
+	else
+		echo 2
+		firstcreate
+		blur
+		_convert
+		reset
+	fi
+else
+	if [[ -e ${blurfile} ]]; then
+		echo 3
+		setblur
+		reset
+	else
+		echo 4
+		blur
+		setblur
+		reset
+	fi
+fi

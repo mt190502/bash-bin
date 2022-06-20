@@ -1,0 +1,314 @@
+#!/bin/bash
+
+#############################
+#
+## CONFIG LOAD
+#
+#############################
+if [[ -e /etc/debianefihelper.conf ]]; then
+	. /etc/debianefihelper.conf
+else
+	echo -e "Configuration file not found. This may be because you are opening\n\
+the program for the first time or because the file has been deleted or moved.\n\
+Please opening the program with 'first' parameter. Example: 'sudo efihelper first'"
+fi
+
+
+
+#############################
+#
+## PERM's and EFI DETECTION
+#
+#############################
+
+if [[ $(id -u) != "0" ]]; then
+	echo "Please run program with root permissions."
+	exit 1
+fi
+
+if [[ ! -d "/sys/firmware/efi/efivars" ]]; then
+	echo "Efi variables not found in this system. Aborting..."
+	exit 1
+fi
+
+
+#############################
+#
+## CHECK PROGRAMS
+#
+#############################
+
+checkprogram(){
+	missingpacks=0
+	command -v $1 >/dev/null 2>&1;
+	if [[ $? -eq 1 ]]; then
+		echo -e "Please install $1 before proceeding."
+		missingpacks=$(( $missingpacks + 1 ))
+	fi
+}
+
+
+
+#############################
+#
+## ROOTPART DETECTION
+#
+#############################
+
+if [[ -n $ROOTDISK ]]; then
+  	ROOTUUID="$(blkid -s UUID -o value $ROOTDISK)"
+else
+	ROOTUUID="$(findmnt / -o UUID | tail -n 1)"
+fi
+
+
+
+#############################
+#
+## EFIPART DETECTION
+#
+#############################
+
+[[ ! -n $EFIDIR ]] && EFIDIR="/boot/efi"
+if [[ ! -n $EFIPART ]]; then
+	if [[ -n "$(findmnt $EFIDIR | grep dev | grep -oi nvme)" ]]; then
+		EFIPART="$(findmnt $EFIDIR | grep dev | awk '{print $2}' | sed 's/p/ -p /g')"
+	elif [[ -n "$(findmnt $EFIDIR | grep dev | awk '{print $2}' | grep -o sd)" ]]; then
+		disk="$(findmnt $EFIDIR | grep dev | awk '{print $2}' | cut -d "/" -f3 | grep -o '[a-z]*')"
+		part="$(findmnt $EFIDIR | grep dev | awk '{print $2}' | cut -d "/" -f3 | grep -o '[0-9]*')"
+		EFIPART="/dev/$disk -p $part"
+	elif [[ -n "$(findmnt $EFIDIR | grep dev | awk '{print $2}' | grep -o mmcblk)" ]]; then
+		EFIPART="$(findmnt $EFIDIR | grep dev | awk '{print $2}' | sed 's/p/ -p /g')"
+	fi
+fi
+
+
+
+#############################
+#
+## TARGET
+#
+#############################
+
+TARGET="$EFIDIR/$(cat /etc/machine-id)"
+[[ ! -d $TARGET ]] && mkdir -p $TARGET
+
+
+
+#############################
+#
+## COPY FILES TO ESPDIR
+#
+#############################
+
+copyfilestoesp(){
+	[[ ! -d $TARGET/$1 ]] && mkdir -p $TARGET/$1 || rm -f $TARGET/$1/{linux,initrd}
+	cp /boot/vmlinuz-$1 $TARGET/$1/linux
+	cp /boot/initrd.img-$1 $TARGET/$1/initrd
+}
+
+
+
+#############################
+#
+## INSTALL ENTRY via EFISTUB
+#
+#############################
+
+installefistubentry(){
+	echo "Installing new entry (version $1)"
+	nkernel="/$(cat /etc/machine-id)/$1/linux"
+	ninitrd="\\$(cat /etc/machine-id)\\$1\\initrd"
+
+	copyfilestoesp $1
+	
+	[[ -n "$(efibootmgr | grep $1)" ]] && efibootmgr -qBb $(efibootmgr | grep $1 | cut -d '*' -f1 | sed "s/Boot//g")
+
+	efibootmgr -q -d $EFIPART \
+		-c -L "$NAME - ($DISTCODENAME) ($1)" \
+		-l $nkernel \
+		-u "root=UUID=$ROOTUUID initrd=$ninitrd $PARAMS" -v
+}
+
+
+
+##################################
+#
+## INSTALL ENTRY via SYSTEMDBOOT
+#
+##################################
+
+installsystemdbootentry(){
+	echo "Installing new entry (version $1)"
+	nkernel="/$(cat /etc/machine-id)/$1/linux"
+	ninitrd="/$(cat /etc/machine-id)/$1/initrd"
+
+	copyfilestoesp $1
+
+	[[ ! -n "$(efibootmgr | grep 'Linux')" ]] && bootctl install
+
+	echo -e "\
+title\t\t$NAME - ($DISTCODENAME)\n\
+version\t\t$1\n\
+machine-id\t$MACHID\n\
+options\t\troot=UUID=$ROOTUUID $PARAMS\n\
+linux\t\t$nkernel\n\
+initrd\t\t$ninitrd" | tee $EFIDIR/loader/entries/${MACHID}-${1}.conf
+	exit
+}
+
+
+
+##################################
+#
+## REMOVE ENTRY via SYSTEMDBOOT
+#
+##################################
+
+removesystemdbootentry(){
+	echo "Removing systemdboot entry (version $1)"
+
+	[[ -d "$TARGET/$1" ]] && rm -rf $TARGET/$1
+	[[ -e "$TARGET/loader/entries/${MACHID}-${1}.conf" ]] && rm /boot/efi/loader/entries/${MACHID}-${1}.conf
+
+	exit 0
+}
+
+
+
+
+#############################
+#
+## REMOVE ENTRY via EFISTUB
+#
+#############################
+
+removefistubentry(){
+	echo "Removing efistub entry (version $1)"
+
+	[[ -d "$TARGET/$1" ]] && rm -f $TARGET/$1/{linux,initrd}
+	[[ -n $(efibootmgr -v | grep $1) ]] && efibootmgr -qBb $(efibootmgr | grep $1 | cut -d '*' -f1 | sed "s/Boot//g")
+	[[ -z "$(ls -A $TARGET/$1)" ]] && rmdir $TARGET/$1
+	
+	exit 0
+}
+
+
+
+
+#############################
+#
+## FIRST SETUP
+#
+#############################
+
+checkprogram lsb_release
+checkprogram efibootmgr
+[[ $missingpacks -ge 1 ]] && exit 1
+
+firstsetup(){
+	if [[ -n "$(apt list --installed | grep grub)" ]]; then
+		echo -e "Grub detected in the system. This may restrict or break the operation of the efihelper program.\n\
+Do you want to uninstall grub? (If you wish, you can then reinstall Grub and uninstall this program.) [Y/N]"
+		read -p "> " result
+		case $result in
+			y|Y|yes|YES)
+				apt list --installed | grep grub | cut -d '/' -f1 | xargs sudo apt remove -y
+				exit
+			;;
+			n|N|no|NO)
+				exit 1
+			;;
+		esac
+	fi
+
+
+	if [[ -e "/etc/debianefihelper.conf" ]]; then
+		echo -e "Config file is available in /etc.\nDo you want to continue?\nPress <Enter> to continue or press <Ctrl+C> to cancel operation"
+		read
+	fi
+
+	if [[ ! -e "/etc/kernel/postinst.d/zz-efihelper"  ]]; then
+		mkdir -p /etc/kernel/postinst.d >/dev/null
+		echo -e '#!/bin/bash\n/usr/local/bin/efihelper install $1' > /etc/kernel/postinst.d/zz-efihelper
+		chmod +x /etc/kernel/postinst.d/zz-efihelper
+	fi
+
+	if [[ ! -e "/etc/kernel/postrm.d/zz-efihelper"  ]]; then
+		mkdir -p /etc/kernel/postrm.d >/dev/null
+		echo -e '#!/bin/bash\n/usr/local/bin/efihelper remove $1' > /etc/kernel/postrm.d/zz-efihelper
+		chmod +x /etc/kernel/postrm.d/zz-efihelper
+	fi
+
+	if [[ ! -e "/etc/initramfs/post-update.d/zz-efihelper"  ]]; then
+		mkdir -p /etc/initramfs/post-update.d >/dev/null
+		echo -e '#!/bin/bash\n/usr/local/bin/efihelper update $1' > /etc/initramfs/post-update.d/zz-efihelper
+		chmod +x /etc/initramfs/post-update.d/zz-efihelper
+	fi
+
+	FILEVARIABLES='################################################\n#\n## BootLoader Method (systemdboot or efistub)\n## EFI partition directory (/boot or /boot/efi)\n#\n################################################\n'
+	FILEVARIABLES+='METHOD="systemdboot"\n'
+	FILEVARIABLES+="EFIDIR=\"$(cat /etc/fstab | grep efi | head -n 1 | awk '{print $2}')\"\n\n"
+	FILEVARIABLES+='###################################################################################\n#\n## Changing the values below may compromise program stability.\n## If you encounter such a problem, type "sudo efihelper first" to reset the file\n#\n###################################################################################\n'
+	FILEVARIABLES+="ROOTDISK=\"$(mount | grep ' / ' | cut -d ' '  -f1)\"\n"
+	FILEVARIABLES+="EFIPART=\"$EFIPART\"\n"
+	FILEVARIABLES+="MACHID=\"$(cat /etc/machine-id)\"\n"
+	FILEVARIABLES+="NAME=\"$(lsb_release -i | awk '{print $3}') Linux $(lsb_release -r | awk '{print $2}')\"\n\n"
+	FILEVARIABLES+="if [[ \"\$(lsb_release -c | awk '{print \$2}')\" == \"jammy\"  ]]; then\n\tDISTCODENAME='Jammy Jelfish'\n\
+elif [[ \"\$(lsb_release -c | awk '{print \$2}')\" == \"impish\"  ]]; then\n\tDISTCODENAME='Impish Indri'\n\
+elif [[ \"\$(lsb_release -c | awk '{print \$2}')\" == \"hirsute\"  ]]; then\n\tDISTCODENAME='Hirsute'\n\
+elif [[ \"\$(lsb_release -c | awk '{print \$2}')\" == \"focal\"  ]]; then\n\tDISTCODENAME='Focal Fossa'\n\
+elif [[ \"\$(lsb_release -c | awk '{print \$2}')\" == \"bionic\"  ]]; then\n\tDISTCODENAME='Bionic Beaver'\n\
+fi\n\n"
+	FILEVARIABLES+="PARAMS=\"$(cat /proc/cmdline | cut -d ' ' -f3-)\""
+
+	echo -e $FILEVARIABLES | tee /etc/debianefihelper.conf
+
+	exit
+}
+
+
+#############################
+#
+## COMMAND LINE
+#
+#############################
+case $1 in
+	install)
+		if [[ $METHOD == "systemdboot" ]]; then
+			installsystemdbootentry $2
+		elif [[ $METHOD == "efistub" ]]; then
+			installefistubentry $2
+		else
+			echo "Current method is missing, please set the METHOD environment in /etc/debianefihelper.conf file."
+			exit 1
+		fi
+
+	;;
+	remove)
+		if [[ $METHOD == "systemdboot" ]]; then
+			removesystemdbootentry $2
+		elif [[ $METHOD == "efistub" ]]; then
+			removefistubentry $2
+		else
+			echo "Current method is missing, please set the METHOD environment in /etc/debianefihelper.conf file."
+			exit
+		fi
+	;;
+	update)
+		if [[ $METHOD == "systemdboot" ]]; then
+			echo "Updating files (version $2)"
+			copyfilestoesp $2
+		elif [[ $METHOD == "efistub" ]]; then
+			echo "Updating files (version $2)"
+			copyfilestoesp $2
+		else
+			echo "Current method is missing, please set the METHOD environment in /etc/debianefihelper.conf file."
+			exit
+		fi
+	;;
+	first)
+		firstsetup
+	;;
+esac
+

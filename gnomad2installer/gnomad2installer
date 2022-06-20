@@ -1,0 +1,46 @@
+#!/bin/bash
+
+cat << SEP > ~/.profile
+PATH="$HOME/.local/bin:$PATH"
+export PATH
+SEP
+
+FGRED="\e[0;31m"
+FGREN="\e[0;32m"
+FGYEL="\e[0;33m"
+FGRES="\e[0;39m"
+
+checkpacks()
+{
+  missingpacks=0
+  if [[ "$(lsb_release -i | awk '{print $3,$4,$5}')" == "Fedora" ]]; then
+	  rpm -qa | grep $@ 2>&1;
+	  if [[ $? -eq 1 ]]; then
+	    echo -e "${FGRED} Please install $1 before proceeding. ${FGRES}"; 
+   	    missingpacks=$(( $missingpacks + 1 ))
+	  fi
+  elif [[ "$(lsb_release -i | awk '{print $3,$4,$5}')" == "Arch" ]]; then
+	  pacman -Q | grep $@ 2>&1;
+	  if [[ $? -eq 1 ]]; then
+            echo -e "${FGRED} Please install $1 before proceeding. ${FGRES}"
+	    missingpacks=$(( $missingpacks + 1 ))
+	  fi
+  fi
+}
+
+checkpacks libnjb
+checkpacks libid3tag
+checkpacks gtk2
+
+[[ $missingpacks -ge 1 ]] && exit 1
+
+URL="http://ftp.tr.debian.org/debian/pool/main/g/gnomad2/gnomad2_2.9.6-6_amd64.deb"
+
+pushd $(mktemp -d)
+wget $URL
+ar x "gnomad2_2.9.6-6_amd64.deb"
+tar xf "data.tar.xz"
+[[ -d "~/.local/bin" ]] && mkdir ~/.local/bin
+cp -r usr/* ~/.local/
+echo "Gnomad2 installed. Please check to application box."
+popd

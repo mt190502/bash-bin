@@ -1,0 +1,4 @@
+efihelper usr/sbin
+initramfs-post-update/zz-efihelper etc/initramfs/post-update.d
+kernel-postinst/zz-efihelper etc/kernel/postinst.d
+kernel-postrm/zz-efihelper etc/kernel/postrm.d
