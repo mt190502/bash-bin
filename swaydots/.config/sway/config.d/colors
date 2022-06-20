@@ -1,0 +1,27 @@
+#############################
+#
+## Color Variants
+#
+##############################
+set $coloract #7b1c06
+set $colorin #541404
+set $color15 #e0ce8b
+set $split #D03109
+set $coloru #D03109
+set $color0 #0a0000
+set $color8 #9c9061
+set $color1 #9B2408
+
+
+##############################
+#
+## Colors
+#
+##############################
+# class                 border    backgr    text         indicator      child_border
+client.focused          $coloru   $coloru   $color15     $split         $coloru
+client.focused_inactive $coloru   $coloru   $color15     $split         $color0
+client.unfocused        $color0   $color0   $color15     $split         $color0
+client.urgent           $coloru   $coloru   $color15     $coloru        $coloru
+client.placeholder      $color0   $color8   $color15     $color0        $color8
+client.background       $color0

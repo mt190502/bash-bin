@@ -1,0 +1,139 @@
+#!/bin/bash
+PATH="$HOME/.local/bin:$PATH"
+export PATH
+
+FGRED="\e[0;31m"
+FGREN="\e[0;32m"
+FGYEL="\e[0;33m"
+FGRES="\e[0;39m"
+
+_logfile=$PWD/installer-$(date +%d%m%Y_%H%M%S).log
+_sep="========================="
+
+
+checkprogram()
+{
+  missingpacks=0
+  command -v $1 >/dev/null 2>&1;
+  if [[ $? -eq 1 ]]; then
+    echo -e "${FGRED} Please install $1 before proceeding. ${FGRES}"; 
+    missingpacks=$(( $missingpacks + 1 ))
+  fi
+}
+
+case $1 in
+	-i)	
+		echo -e "${FGREN} Checking program(s)...${FGRES}"
+		checkprogram sway
+		checkprogram lxappearance
+		checkprogram waybar
+		checkprogram mako
+		checkprogram grim
+		checkprogram brightnessctl
+		checkprogram wofi
+		checkprogram git
+		checkprogram kitty
+		checkprogram feh
+		checkprogram wget
+		checkprogram pip
+		checkprogram jq
+		checkprogram swappy
+		checkprogram slurp
+		[[ $missingpacks -ge 1 ]] && exit 1
+		echo -e "${FGREN} All dependencies are present on the computer :) ${FGRES}"
+		
+		
+		_locale=$(swaymsg -t get_inputs | jq 'map(select(has("xkb_active_layout_name")))[0].xkb_active_layout_name')
+		if [[ "$(echo $_locale | grep -o Turkish)" == "Turkish" ]]; then
+			_layout=tr
+		elif [[ "$(echo $_locale | grep -o Deutsch)" == "Deutsch" ]]; then
+			_layout=de
+		else
+			_layout=us
+		fi
+		
+
+		echo -e "${FGREN} Backing up previous dotfile files, if any...${FGRES}"
+		echo -e "$_sep" &>>$_logfile
+		echo -e ">> BACKUP" &>>$_logfile
+		mkdir $HOME/.backupdots &>>$_logfile
+		for i in $(ls $PWD/.config); do
+			[[ -e $HOME/.config/$i ]] && mv $HOME/.config/$i $HOME/.backupdots
+		done
+		echo -e "$_sep" &>>$_logfile
+		
+
+		echo -e "${FGREN} Installing swaydots...${FGRES}"
+		echo -e "$_sep" &>>$_logfile
+		echo -e ">> COPY" &>>$_logfile
+		cp -r $PWD/.config/* $HOME/.config/ &>>$_logfile
+		cp -r $PWD/.fonts $HOME/ &>>$_logfile
+		echo -e "$_sep" &>>$_logfile
+		
+
+		echo -e "${FGREN} Downloading extra dependencies...${FGRES}"
+		echo -e "$_sep" &>>$_logfile
+		echo -e ">> PIP" &>>$_logfile
+		pip install pywal &>>$_logfile
+		pip install pillow &>>$_logfile
+		pip install wpgtk &>>$_logfile
+		fc-cache
+		echo -e "$_sep" &>>$_logfile
+
+		
+		echo -e "${FGREN} Installing FlatColor theme, linking dotfiles in wpgtk and applying theme...${FGRES}"
+		echo -e "$_sep" &>>$_logfile
+		echo -e ">> WPG" &>>$_logfile
+		wpg-install.sh -gi &>>$_logfile
+		echo -e ">> LN" &>>$_logfile
+		ln -sf $HOME/.config/sway/config.d/colors $HOME/.config/wpg/templates/sway &>>$_logfile
+		ln -sf $HOME/.config/waybar/style.css $HOME/.config/wpg/templates/waybar &>>$_logfile
+		ln -sf $HOME/.config/mako/config $HOME/.config/wpg/templates/mako &>>$_logfile
+		ln -sf $HOME/.config/wpg/wallpapers/* $HOME/.config/wpg/.current &>>$_logfile
+		sch=$(ls $HOME/.config/wpg/schemes)
+		usrsch=$(ls $HOME/.config/wpg/schemes | sed "s/arch/$USER/g")
+		echo -e ">> MV" &>>$_logfile
+		mv $HOME/.config/wpg/schemes/$sch $HOME/.config/wpg/schemes/$usrsch &>>$_logfile
+		echo -e ">> CP" &>>$_logfile
+		cp $PWD/gtk/gtk2 $HOME/.local/share/themes/FlatColor/gtk-2.0/gtkrc &>>$_logfile
+		cp $PWD/gtk/gtk3.0 $HOME/.local/share/themes/FlatColor/gtk-3.0/gtk.css &>>$_logfile
+		cp $PWD/gtk/gtk3.20 $HOME/.local/share/themes/FlatColor/gtk-3.20/gtk.css &>>$_logfile
+		cp $PWD/gtk/gtkrc $HOME/.gtkrc-2.0 &>>$_logfile
+		echo -e ">> GSETTINGS" &>>$_logfile
+		gsettings set org.gnome.desktop.interface gtk-theme 'FlatColor' &>>$_logfile
+		gsettings set org.gnome.desktop.interface icon-theme 'flattrcolor' &>>$_logfile
+		[[ "$(cat /etc/os-release | grep "^NAME" | cut -d\" -f2)" != "Arch Linux" ]] && sed -i 's/"custom\/pacman", //1' $HOME/.config/waybar/config
+		swaymsg reload
+		echo -e "$_sep" &>>$_logfile
+
+		
+		echo -e "${FGREN} Setting keyboard locale...${FGRES}"
+		echo -e "${FGYEL} Your keyboard layout is $_locale, Setting locale $_layout"
+		echo -e " If you want to set another keyboard layout,"
+		echo -e " you can edit the file ~/.config/sway/config.d/inputs ${FGRES}"
+		sed -i "s/tr/$_layout/1" $HOME/.config/sway/config.d/inputs
+
+
+
+		echo -e "${FGREN} Installing blurlock (required password)...${FGRES}"
+		echo -e "$_sep" &>>$_logfile
+	       	sudo cp blurlock /usr/local/bin/blurlock &>>$_logfile
+		sudo chmod +x /usr/local/bin/blurlock &>>$_logfile
+		echo -e "$_sep" &>>$_logfile
+		
+		echo -e "${FGYEL} I recommend restarting the session for the settings to take effect completely..."
+		echo -e " You can edit the workspace_layout variable from the "
+		echo -e " $HOME/.config/sway/config.d/preferences file to change the default window mode${FGRES}"
+	;;
+	-r)
+		echo -e "${FGYEL} Removing dotfiles and restoring old dotfiles...${FGRES}"
+		if [[ "$(echo $PWD | grep -o swaydots)" == "swaydots" ]]; then
+			for r in $(ls $PWD/.config); do
+				rm -rf $HOME/.config/$r &>>$_logfile
+				cp -r $HOME/.backupdots/$r $HOME/.config/ &>>$_logfile
+			done
+		else
+		       	echo -e "${FGRED} This process is critical. Please take your current location to the swaydots folder. ${FGRES}"
+		fi
+	;;
+esac

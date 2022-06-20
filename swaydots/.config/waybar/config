@@ -1,0 +1,144 @@
+{
+    // "layer": "top", // Waybar at top layer
+    // "position": "bottom", // Waybar position (top|bottom|left|right)
+    "height": 30, // Waybar height (to be removed for auto height)
+    // "width": 1280, // Waybar width
+    // Choose the order of the modules
+    "modules-left": ["custom/space", "custom/powermenu", "custom/seperator", "sway/workspaces", "sway/mode", "custom/media", "sway/window"],
+    //"modules-center": ["sway/window"],
+    "modules-right": ["custom/screenshot", "custom/pacman", "idle_inhibitor", "custom/fan", "backlight", "pulseaudio", "battery", "network", "clock", "tray", "custom/space"],
+    // Modules configuration
+    // "sway/workspaces": {
+    //     "disable-scroll": true,
+    //     "all-outputs": true,
+    //     "format": "{name}: {icon}",
+    //     "format-icons": {
+    //         "1": "",
+    //         "2": "",
+    //         "3": "",
+    //         "4": "",
+    //         "5": "",
+    //         "urgent": "",
+    //         "focused": "",
+    //         "default": ""
+    //     }
+    // },
+    "sway/workspaces": {
+        "format": " {}"
+    },
+    "sway/mode": {
+        "format": "<span style=\"italic\">{}</span>"
+    },
+    "sway/window": {
+        "format": "   {}   "
+    },
+    "idle_inhibitor": {
+        "format": "    {icon}    ",
+        "format-icons": {
+            "activated": "",
+            "deactivated": ""
+        },
+    },
+    "tray": {
+        // "icon-size": 21,
+        "spacing": 10
+    },
+    "clock": {
+        // "timezone": "America/New_York",
+        "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
+        "format-alt": "  {:%d/%m/%Y - %H:%M:%S}",
+        "format": "  {:%H:%M:%S}",
+        "interval": 1
+    },
+    "backlight": {
+        "device": "intel_backlight",
+        "format": "{icon}  {percent}%",
+        "format-icons": [""],
+        "on-scroll-up": "~/.config/sway/scripts.d/brightness.sh up",
+        "on-scroll-down": "~/.config/sway/scripts.d/brightness.sh down"
+    },
+    "battery": {
+        "states": {
+            // "good": 95,
+            "warning": 30,
+            "critical": 15
+        },
+        "format": "{icon}  {capacity}%",
+        "format-charging": "  {capacity}%",
+	"format-charging-alt": "  {capacity}%  [{time}]",
+        "format-plugged": "  {capacity}%",
+        "format-alt": "{icon} {capacity}%  [{time}]",
+        // "format-good": "", // An empty format will hide the module
+        // "format-full": "",
+        "format-icons": ["", "", "", "", ""]
+    },
+    "battery#bat2": {
+        "bat": "BAT2"
+    },
+    "network": {
+        // "interface": "wlp2*", // (Optional) To force the use of this interface
+        "format-wifi": "",
+        "format-ethernet": "  {ifname}",
+        "format-linked": "  {ifname} (No IP)",
+        "format-disconnected": "⚠  Disconnected",
+        // "format-alt": "{ifname}: {ipaddr}/{cidr}",
+	"format-alt": " [ {essid} ]",
+        "on-click-right": "kitty -e nmtui"
+    },
+    "custom/fan": {
+    	"exec": "cat /sys/devices/virtual/hwmon/*/fan1_input",
+	"format": "  {} RPM",
+        "interval": 1
+    },
+    "custom/pacman": {
+        "format": "    {} ",
+        "interval": 15,                       // every hour
+        "exec": "checkupdates | wc -l",       // # of updates
+        "exec-if": "exit 0",                  // always run; consider advanced run conditions
+        //"on-click": "kitty -e 'sudo pacman -Syu'; pkill -SIGRTMIN+8 waybar", // update system
+        "on-click": "tilix -e 'sh -c \"sudo pacman -Syyu; echo Done - Press enter to exit; read\"'" ,
+        "tooltip": "true",
+        "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
+        "signal": 8
+    },
+    "custom/space": {
+    	"exec": "echo '   '",
+	"format": "{}",
+        "interval": 10000
+    },
+    "custom/seperator": {
+    	"exec": "echo '  |  '",
+	"format": "{}",
+        "interval": 10000
+    },
+    "custom/powermenu": {
+        "format": "      ",
+        "interval": 3600,
+        "on-click": "$HOME/.config/sway/scripts.d/powermenu.sh"
+    },
+    "custom/screenshot": {
+	"format": "   	   ",
+	"interval": 3600,
+	"on-click": "$HOME/.config/sway/scripts.d/screenshot.sh"
+    },
+    "pulseaudio": {
+        // "scroll-step": 1, // %, can be a float
+        "format": "{icon} {volume}%",
+        "format-bluetooth": "{icon}  {volume}%",
+        "format-bluetooth-muted": "{icon}  ",
+        "format-muted": "",
+        "format-source-muted": "",
+        "format-icons": {
+            "headphone": "",
+            "hands-free": "",
+            "headset": "",
+            "phone": "",
+            "portable": "",
+            "car": "",
+            "default": ["", "", ""]
+        },
+        "scroll-step": 5,
+        "on-click": "pactl set-sink-mute $(pacmd list-sinks | grep -e '* index:' | awk -F ': ' '{print $2}') toggle",
+	"on-click-right": "pavucontrol"
+    },
+}

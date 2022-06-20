@@ -1,0 +1,60 @@
+###############################
+#
+## Default workspaces
+#
+###############################
+#assign [app_id="(^firefox$|Google-chrome|brave)"] $ws2
+#assign [app_id="(gnome-terminal|kitty)"] $ws3
+#assign [app_id="(gedit|Gedit)"] $ws4
+#assign [app_id="(vlc|lollypop)"] $ws5
+#assign [app_id="(nautilus|gnome-control-center)"] $ws6
+#assign [app_id="(telegramdesktop)"] $ws7
+#assign [app_id="(lxrandr|arandr|Lxappearance)"] $ws8
+
+###############################
+#
+## Window Rules
+#
+###############################
+for_window [app_id="(zenity)" title="PowerMenu"] floating enable
+for_window [app_id="(zenity)" title="PowerMenu"] move absolute position 15 45
+for_window [app_id="(zenity)" title="Screenshot"] floating enable
+for_window [app_id="(zenity)" title="Screenshot"] move absolute position 1020 45
+for_window [title="dropterminal"] move container to scratchpad
+for_window [title="dropterminal"] move up 275 #absolute position 480 -16
+for_window [title="dropterminal"] resize set 960 500
+for_window [app_id="system-config-printer"] floating enable
+for_window [class="feh"] floating enable
+for_window [app_id="gnome-calculator"] floating enable
+for_window [app_id="tilix"] floating enable
+for_window [class="(?i)Lxappearance$"] floating enable
+for_window [app_id="(?i)mpv"] floating enable
+for_window [app_id="(?i)thunar"] floating enable
+for_window [app_id="vlc"] floating enable
+for_window [app_id="tlp-ui"] floating enable
+for_window [app_id="pamac-manager"] floating enable
+for_window [app_id="nm-connection-editor$"] floating enable
+for_window [app_id="simple-scan"] floating enable
+for_window [app_id="firetools"] floating enable
+for_window [app_id="firewall-config"] floating enable
+for_window [app_id="gnome-(calendar|calculator|power-statistics|control-center)"] floating enable
+for_window [app_id="org.gnome.(Weather)"] floating enable
+for_window [app_id="(psensor)"] floating enable
+for_window [app_id="soffice"] floating enable
+for_window [title="^Open File$"] floating enable
+for_window [title="^Open File$"] resize set 1366 768
+for_window [title="^Open File$"] move position center
+for_window [title="nmtui - Kitty"] floating enable
+for_window [title="Update Check|Cryptomator"] floating enable, resize set 800 600
+for_window [window_role="GtkFileChooserDialog"] floating enable
+for_window [window_role="GtkFileChooserDialog"] resize set 1366 768
+for_window [window_role="GtkFileChooserDialog"] move position center
+for_window [app_id="tilix"] move position top
+for_window [window_role="pop-up"] floating enable
+for_window [window_role="bubble"] floating enable
+for_window [window_role="task_dialog"] floating enable
+for_window [window_role="Preferences"] floating enable
+for_window [window_type="dialog"] floating enable
+for_window [window_type="menu"] floating enable
+for_window [instance="update_installer"] floating enable
+for_window [shell="xwayland"] title_format "[X] %title"

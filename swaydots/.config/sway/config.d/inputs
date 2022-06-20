@@ -1,0 +1,31 @@
+###############################
+#
+## Keyboard
+#
+###############################
+input type:keyboard {
+    xkb_layout tr
+    xkb_numlock enabled
+}
+
+
+###############################
+#
+## Touchpad
+#
+###############################
+input type:touchpad {
+       dwt enabled
+       tap enabled
+       natural_scroll enabled
+       middle_emulation enabled
+}
+
+###############################
+#
+## GTK - Wayland
+#
+###############################
+exec systemctl --user import-environment exec systemctl --user import-environment DISPLAY WAYLAND_DISPLAY SWAYSOCK
+exec hash dbus-update-activation-environment 2>/dev/null && \
+     dbus-update-activation-environment --systemd DISPLAY WAYLAND_DISPLAY SWAYSOCK

@@ -1,0 +1,28 @@
+{
+    "wallpaper": "/home/arch/.config/wpg/wallpapers/wallhaven-0p81j3.jpg",
+    "alpha": "100",
+
+    "special": {
+        "background": "#0a0000",
+        "foreground": "#e0ce8b",
+        "cursor": "#e0ce8b"
+    },
+    "colors": {
+        "color0": "#0a0000",
+        "color1": "#9B2408",
+        "color2": "#D03109",
+        "color3": "#A4570D",
+        "color4": "#DD5F0C",
+        "color5": "#976A53",
+        "color6": "#EF970C",
+        "color7": "#e0ce8b",
+        "color8": "#9c9061",
+        "color9": "#9B2408",
+        "color10": "#D03109",
+        "color11": "#A4570D",
+        "color12": "#DD5F0C",
+        "color13": "#976A53",
+        "color14": "#EF970C",
+        "color15": "#e0ce8b"
+    }
+}
