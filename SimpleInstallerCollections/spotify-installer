@@ -1,0 +1,149 @@
+#!/bin/bash
+
+##############################
+#
+## Config
+#
+##############################
+INSTALL_PREFIX="$HOME/.local"
+
+
+
+##############################
+#
+## MAIN PROCESS
+## DO NOT EDIT
+#
+##############################
+SPOTIFY_URL="https://repository-origin.spotify.com/pool/non-free/s/spotify-client"
+VERSION="$(curl -fsSL $SPOTIFY_URL/ | grep -o "spotify.*.deb" | cut -d '>' -f2 | sort -Vr | head -n 1)"
+
+[[ ! -n $INSTALL_PREFIX ]] && INSTALL_PREFIX="$HOME/.local" 
+
+[[ -e "/var/.spotify_prefix" ]] && SPOTIFY_DIR="$(cat /var/.spotify_prefix)"
+
+if [[ "$(echo $INSTALL_PREFIX | grep -oi 'home')" ]] || [[ -n "$(echo $INSTALL_PREFIX | grep -o '~')" ]]; then
+	rootless=1
+else
+	rootless=0
+fi
+
+if [[ -n $SPOTIFY_DIR ]]; then
+	if [[ "$(echo $SPOTIFY_DIR | grep -oi 'home')" ]] || [[ "$(echo $SPOTIFY_DIR | grep -o '~')" ]]; then
+		rootless=1
+	else
+		rootless=0
+	fi
+fi
+
+install_spotify(){
+	[[ -n "$(command -v spotify)" ]] && [[ -e "$SPOTIFY_DIR/spotify-version" ]] && echo "Spotify already installed in $INSTALL_PREFIX" && exit 0
+
+	pushd $(mktemp -d)
+	wget "$SPOTIFY_URL/$VERSION"
+	ar x $VERSION
+	tar xf data.tar.gz
+	
+	[[ ! -e "/usr/lib64/libcurl-gnutls.so.4" ]] && sudo ln -sf /usr/lib64/libcurl.so /usr/local/lib64/libcurl-gnutls.so.4
+
+	if [[ "$rootless" == "0" ]]; then
+		[[ ! -d "$INSTALL_PREFIX/spotify" ]] && sudo mkdir -p $INSTALL_PREFIX/spotify
+		sudo mkdir -p /usr/local/share/applications /usr/local/bin /usr/local/share/icons
+		sudo cp -r usr/* $INSTALL_PREFIX/spotify
+		echo $VERSION | sudo tee $INSTALL_PREFIX/spotify/spotify-version
+		echo $INSTALL_PREFIX/spotify | sudo tee /var/.spotify_prefix
+		sudo cp $INSTALL_PREFIX/spotify/share/spotify/spotify.desktop /usr/local/share/applications/
+		STARTERFILE='#!/bin/bash\n'
+		STARTERFILE+="$INSTALL_PREFIX/spotify/bin/spotify"
+		echo -e "$STARTERFILE" | sudo tee /usr/local/bin/spotify
+		sudo chmod +x /usr/local/bin/spotify
+		sudo cp $INSTALL_PREFIX/spotify/share/spotify/icons/spotify-linux-128.png /usr/local/share/icons/spotify-client.png
+		
+	else
+		[[ ! -d "$INSTALL_PREFIX/spotify" ]] && mkdir -p $INSTALL_PREFIX/spotify
+		mkdir -p $HOME/.local/share/applications $HOME/.local/bin $HOME/.local/share/icons
+		cp -r usr/* $INSTALL_PREFIX/spotify
+		echo $VERSION | tee $INSTALL_PREFIX/spotify/spotify-version
+		echo $INSTALL_PREFIX/spotify | sudo tee /var/.spotify_prefix
+		cp $INSTALL_PREFIX/spotify/share/spotify/spotify.desktop $HOME/.local/share/applications/
+		STARTERFILE='#!/bin/bash\n'
+		STARTERFILE+="$INSTALL_PREFIX/spotify/bin/spotify"
+		echo -e "$STARTERFILE" | tee $HOME/.local/bin/spotify
+		chmod +x $HOME/.local/bin/spotify
+		cp $INSTALL_PREFIX/spotify/share/spotify/icons/spotify-linux-128.png $HOME/.local/share/icons/spotify-client.png
+		
+	fi
+}
+
+update_spotify(){
+	[[ ! -e "/var/.spotify_prefix" ]] && echo "Spotify is not installed, aborting!!!" && exit 1
+
+	if [[ -e "$SPOTIFY_DIR/spotify-version" ]]; then
+		[[ "$(cat $SPOTIFY_DIR/spotify-version)" == "$VERSION" ]] && echo -e "Spotify is up-to-date\nNothing to do!" && exit 0
+	fi
+
+	remove_spotify
+	install_spotify
+}
+
+remove_spotify(){
+	[[ ! -e "/var/.spotify_prefix" ]] && echo "Spotify is not installed, aborting!!!" && exit 1
+
+	if [[ "$rootless" == "0" ]]; then
+		sudo rm -rf $SPOTIFY_DIR /usr/local/share/applications/spotify.desktop /usr/local/bin/spotify /var/.spotify_prefix
+	else
+		rm -rf $SPOTIFY_DIR $HOME/.local/share/applications/spotify.desktop $HOME/.local/bin/spotify
+		sudo rm -rf /var/.spotify_prefix
+	fi
+
+}
+
+
+checkpackages(){
+	OLDIFS=$IFS
+	IFS=","
+
+	PACKAGES="libatomic,libcurl-devel,libcurl"
+	APPS="wget,ar,tar,curl,git"
+
+	missingpacks=0
+	for a in $APPS; do
+		command -v $a >/dev/null 2>&1;
+		if [[ $? -eq 1 ]]; then
+				echo -e "Please install $a before proceeding."
+				missingpacks=$(( $missingpacks + 1 ))
+		fi
+	done
+
+	for b in $PACKAGES; do
+		rpm -qa | grep -i $b >/dev/null 2>&1
+		if [[ $? -eq 1 ]]; then
+				echo -e "Please install $b before proceeding."
+				missingpacks=$(( $missingpacks + 1 ))
+		fi
+	done
+
+	[[ $missingpacks -ge "1" ]] && exit
+}
+
+
+getargs(){
+	case $@ in
+		i) _install=true;;
+		r) _remove=true ;;
+		u) _update=true ;;
+		*) echo "Unknown Command!!!" && exit 1;;
+	esac
+}
+
+
+main(){
+	getargs "$@"
+	checkpackages
+	[[ "${_install}" == "true" ]] && install_spotify
+	[[ "${_remove}"  == "true" ]] && remove_spotify
+	[[ "${_update}"  == "true" ]] && update_spotify
+	exit 0
+}
+
+main "$@"
